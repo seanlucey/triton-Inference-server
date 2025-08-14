@@ -1,1 +1,6 @@
-
+name: "py_preproc"
+backend: "python"
+max_batch_size: 32
+input [{ name: "raw" data_type: TYPE_BYTES dims: [ -1 ] }]  # opaque bytes
+output [{ name: "input" data_type: TYPE_FP32 dims: [3, 224, 224] }]
+instance_group [{ kind: KIND_GPU }]
