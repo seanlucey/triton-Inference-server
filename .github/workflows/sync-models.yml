@@ -1,0 +1,55 @@
+name: Sync Models & Smoke Test
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "model-repo/**"
+      - ".github/workflows/sync-models.yml"
+
+jobs:
+  sync-models:
+    runs-on: ubuntu-latest
+    env:
+      TRITON_URL: http://localhost:8000
+      TEST_MODEL_NAME: my_model
+      AWS_REGION: eu-west-1
+      S3_BUCKET: my-model-bucket
+      S3_PREFIX: model-repo/
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync model repo to S3
+        run: |
+          aws s3 sync ./model-repo s3://${{ env.S3_BUCKET }}/${{ env.S3_PREFIX }}
+
+      - name: Pull model repo from S3 for testing
+        run: |
+          mkdir -p ./test-model-repo
+          aws s3 sync s3://${{ env.S3_BUCKET }}/${{ env.S3_PREFIX }} ./test-model-repo
+
+      - name: Run Triton Server
+        run: |
+          docker run -d --name triton \
+            -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+            -v $(pwd)/test-model-repo:/models \
+            nvcr.io/nvidia/tritonserver:24.07-py3 \
+            tritonserver --model-repository=/models
+          sleep 15
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pytest pydantic
+
+      - name: Run smoke tests
+        run: pytest test_smoke.py -v
