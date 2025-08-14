@@ -1,0 +1,27 @@
+name: "ensemble_resnet"
+platform: "ensemble"
+max_batch_size: 32
+input [{ name: "raw" data_type: TYPE_BYTES dims: [ -1 ] }, { name: "topk" data_type: TYPE_INT32 dims: [1] }]
+output [{ name: "indices" data_type: TYPE_INT32 dims: [ -1 ] }, { name: "scores" data_type: TYPE_FP32 dims: [ -1 ] }]
+
+ensemble_scheduling {
+  step [
+    {
+      model_name: "py_preproc"
+      input_map { key: "raw" value: "raw" }
+      output_map { key: "input" value: "preproc_out" }
+    },
+    {
+      model_name: "resnet50"
+      input_map { key: "input" value: "preproc_out" }
+      output_map { key: "probabilities" value: "probs" }
+    },
+    {
+      model_name: "py_postproc"
+      input_map { key: "probabilities" value: "probs" }
+      input_map { key: "topk" value: "topk" }
+      output_map { key: "indices" value: "indices" }
+      output_map { key: "scores" value: "scores" }
+    }
+  ]
+}
